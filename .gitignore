@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.env/
+env/
+RPA-env/
+
+# Environment variables
+.env
+*.env
+
+# Model files (you already added some, expand it)
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+
+# Data / artifacts
+data/
+model_store/
+*.sqlite3
+*.db
+
+# Logs
+logs/
+*.log
+
+# Jupyter (if you used notebooks)
+.ipynb_checkpoints/
+
+# Streamlit
+.streamlit/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs / Editors
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Cache (ML + HF)
+.cache/
+huggingface/

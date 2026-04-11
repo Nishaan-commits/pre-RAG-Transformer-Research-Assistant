@@ -1,0 +1,21 @@
+# Backend
+fastapi
+uvicorn
+
+# Frontend
+streamlit
+requests
+
+# NLP / Transformers
+transformers
+sentence-transformers
+keybert
+torch
+
+# ML utils
+scikit-learn
+numpy
+
+# Data processing
+PyMuPDF
+arxiv
