@@ -1,10 +1,20 @@
-from utils.arxiv_fetcher import *
-from nlp.preprocessing import *
-from nlp.chunker import *
-from models.embedding import *
-from nlp.Keyword_extractor import *
-from models.QA_model import *
-from nlp.summarizer import *
+from core.ingestion.arxiv_fetcher import search_papers, download_pdf_from_metadata
+from core.processing.preprocessing import preprocess_paper
+from core.processing.chunker import create_chunks
+from core.retrieval.embedding import create_embeddings
+from core.retrieval.vector_store import VectorStore
+from core.qa.QA_model import answer_question
+from core.generation.prompt_builder import build_prompt
+from core.generation.llm_client import generate_answer
+from core.generation.paper_analyzer import analyzer
+from config import GROQ_MODEL
+
+def fetch_papers(query: str, max_results: int = 5) -> list[dict]:
+    """
+    Returns metadata-only paper list. This is what /search calls.
+    """
+    return search_papers(query, max_results)
+
 
 def process_paper(query, max_results=5):
     papers = extractor(query, max_results=max_results)
@@ -23,6 +33,11 @@ def process_paper(query, max_results=5):
             chunk_data = create_embeddings(chunks)
             P['chunks'] = chunk_data
 
+            # Build FAISS Index
+            store = VectorStore()
+            store.build_index(chunk_data)
+            P['store'] = store
+
             # Summary
             P['summary'] = hierarchical_summary(P['chunks'])
 
@@ -40,7 +55,7 @@ def process_paper(query, max_results=5):
 
 # Selection Layer
 
-def list_papers(papers):
+def list_papers(papers: list[dict]) -> list[dict]:
 
     display = []
 
@@ -50,13 +65,13 @@ def list_papers(papers):
             "id" : i+1,
             "title" : paper.get('title', 'Unknown'),
             "authors" : ", ".join(paper.get('authors', [])),
-            "published" : paper.get('published', 'Unknown'),
-            "chunks" : len(paper.get('chunks', []))
+            "published" : str(paper.get('published', 'Unknown')),
+            "abstract" : paper.get('abstract', "")[:300] + "...",
         })
 
     return display
 
-def select_paper(index, papers):
+def select_paper(index: int, papers: list[dict]) -> dict | None:
 
     if index < 1 or index > len(papers):
         return None
@@ -65,37 +80,151 @@ def select_paper(index, papers):
     
     
 class PaperSession:
+    """
+    Lifecycle of a paper in the session:
+        1. select_paper() -> stores metadata (title, pdf_url, etc)
+        2. process_text() -> downloads PDF, extracts and cleans text 
+        3. process_index() -> chunks text, embeds, builds FAISS index
+        4. ask()           -> retrieval + QA or generation (needs step 3)
+        5. _get_analysis   -> summary + keywords extractor (lazily, cached)
+    """
 
     def __init__(self):
         self.current_paper = None # To store system state
+        self.store = None         # VectorStore lives here during a session
+        self._analysis = None
     
-    def load_paper(self, paper):
+    # ── Stage 1: Select ───────────────────────────────────────────────────────
+    def select_paper(self, paper: dict) -> dict:
         self.current_paper = paper
+        self.store = None
+        self._summary = None
+        self._keywords = None
 
         return {
-            "status" : "Paper Loaded",
+            "status" : "selected",
             "title" : paper.get('title', 'Unknown paper')
         }
     
-    def has_paper(self):
-        return self.current_paper is not None
-     
-    def ask(self, question):
-        if self.current_paper is None:
-            return {
-                "error" : "No paper selected"
-                }
-        
-        answer = answer_question(
-            question,
-            self.current_paper.get('chunks', [])
-        )
+    # ── Stage 2: Download + preprocess ────────────────────────────────────────
 
-        if answer is None:
-            return {
-            "answer":"No precise answer found.",
-            "confidence_level":"Low"
+    def process_text(self) -> dict:
+        if not self.current_paper:
+            return {"error" : "No paper selected."}
+
+        pdf_path = download_pdf_from_metadata(self.current_paper)
+        if not pdf_path:
+            return {"error" : "PDF download failed."}
+
+        self.current_paper["pdf_path"] = pdf_path
+        self.current_paper["text"] = preprocess_paper(pdf_path)
+
+        return {
+            "status" : "ok",
+            "characters" : len(self.current_paper["text"]),
         }
+
+    # ── Stage 3: Chunk + embed + FAISS ────────────────────────────────────────
+
+    def process_index(self) -> dict:
+        if not self.current_paper:
+            return {"error" : "No paper selected."}
+        if not self.current_paper.get("text"):
+            return {"error": "Text not extracted yet. Call /process/text first."}
+
+        chunks = create_chunks(self.current_paper["text"])
+        chunk_data = create_embeddings(chunks)
+
+        self.current_paper["chunks"] = chunk_data
+
+        self.store = VectorStore()
+        self.store.build_index(chunk_data)
+
+        return {
+            "status" : "ok",
+            "chunks" : len(chunk_data),
+        }
+
+    def has_paper(self) -> bool:
+        return self.current_paper is not None
+
+    def is_ready(self) -> bool:
+        return self.store is not None
+     
+    # ── Unified analysis (lazy, cached) ───────────────────────────────────────
+
+    def _get_analysis(self) -> dict:
+        """
+        Internal method: computes analysis on first call, returns cache after.
+        """ 
+
+        if not self.current_paper:
+            return {}
+
+        if not self.current_paper.get("chunks"):
+            return {}
+
+        if self._analysis is None:
+            print("[Session] Running paper analysis (first request)...")
+            self._analysis = analyzer.analyze(self.current_paper)
+        
+        return self._analysis
+    
+    def get_analysis(self) -> dict:
+        """
+        Returns the full analysis dict.
+        Used by /analysis endpoint.
+        """
+        return self._get_analysis()
+
+    def get_summary(self) -> str:
+        return self._get_analysis().get("summary", "No summary available.")
+
+    def get_keywords(self) -> list[dict]:
+        keywords = self._get_analysis().get("keywords", [])
+        return [{"keyword": k, "score":1.0} for k in keywords]
+
+    def get_contributions(self) -> str:
+        return self._get_analysis().get("contribution", "")
+    
+    def get_domain(self) -> str:
+        return self._get_analysis().get("contribution", "")
+    
+
+
+    # ── Q&A ───────────────────────────────────────────────────────────────────    
+    def ask(self, question:str, mode:str = "generative") -> dict:
+        if not self.current_paper:
+            return {"error" : "No paper selected."}
+        
+        if not self.is_ready():
+            return {"error": "Paper is still processing. Please wait."}
+
+        relevant_chunks = self.store.search(question, top_k=5)
+
+        if mode == "extractive":
+            answer = answer_question(question, relevant_chunks)
+
+            if answer is None:
+                return {
+                "answer":"No precise answer found.",
+                "confidence_level":"Low"
+            }
+
+            answer["mode"] = "extractive"
+            answer["retrieved_chunks"] = relevant_chunks     # <- for source viewer
+        
+        else:
+            prompt = build_prompt(question, relevant_chunks)
+            answer_text = generate_answer(prompt)
+
+            answer = {
+                "answer": answer_text,
+                "mode": "generative",
+                "model": GROQ_MODEL,
+                "confidence_level" : "N/A",
+                "chunks_used": len(relevant_chunks),
+            }
         
         answer['paper_title'] = self.current_paper.get('title', 'Unknown Paper')
         answer['paper_authors'] = ", ".join(self.current_paper.get('authors', ['Unknown Authors']))
@@ -103,24 +232,8 @@ class PaperSession:
         answer['paper_year'] = getattr(published, 'year', 'Unknown Year')
 
         return answer
-
-    def get_summary(self):
-
-        if not self.current_paper:
-            return {
-                "summary" : "No paper Loaded"
-            }
-        
-        return self.current_paper.get('summary')
     
-    def get_keywords(self):
-
-        if not self.current_paper:
-            return []
-        
-        return self.current_paper.get('keywords', [])
-    
-    def get_metadata(self):
+    def get_metadata(self) -> dict:
 
         if not self.current_paper:
             return {}
@@ -130,8 +243,8 @@ class PaperSession:
         year = getattr(published,'year','Unknown')
 
         return {
-            "title" : self.current_paper.get('title', 'Unknown Paper'),
-            "authors" : ", ".join(self.current_paper.get('authors', ['Unknown Authors'])),
+            "title" : self.current_paper.get('title', 'Unknown'),
+            "authors" : ", ".join(self.current_paper.get('authors', ['Unknown'])),
             "year" : year,
-            "keywords" : self.current_paper.get('keywords', [])
+            "abstract" : self.current_paper.get('abstract', "")
         }

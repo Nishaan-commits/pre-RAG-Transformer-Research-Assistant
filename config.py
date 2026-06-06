@@ -16,3 +16,8 @@ QA_MODEL_NAME = "deepset/roberta-base-squad2"
 DATA_DIR = os.path.join(BASE_DIR, "data")
 PAPERS_DIR = os.path.join(DATA_DIR, "papers")
 
+FAISS_INDEX_DIR = os.path.join(DATA_DIR, "faiss_indexes")
+FAISS_INDEX_FILE = "index.faiss"
+FAISS_CHUNKS_FILE = "chunks.pkl"
+
+GROQ_MODEL = "llama-3.3-70b-versatile"

@@ -1,7 +1,7 @@
 
 from keybert import KeyBERT
-from nlp.summarizer import Top_chunks
-from models.embedding import embedding_model
+from core.summarization.summarizer import Top_chunks
+from core.retrieval.embedding import embedding_model
 
 kw_model = KeyBERT(model=embedding_model)
 

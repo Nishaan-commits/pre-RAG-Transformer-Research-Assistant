@@ -17,17 +17,21 @@ def extract_metadata(result):
         "categories" : result.categories,
     }
 
-def download_pdf(result, folder = PAPERS_DIR):
+def download_pdf_from_metadata(paper: dict , folder = PAPERS_DIR) -> str | None:
 
     try: 
         os.makedirs(folder, exist_ok=True)
 
-        pdf_url = result.pdf_url
-        filename = result.get_short_id() + ".pdf"
+        safe_id = paper["paper_id"].replace("/", "_")
+        filename = safe_id + ".pdf"
 
         path = os.path.join(folder, filename)
 
-        response = requests.get(pdf_url, stream=True, timeout=30)
+        if os.path.exists(path):
+            print(f"[Fetcher] PDF already cached: {filename}")
+            return path 
+
+        response = requests.get(paper["pdf_url"], stream=True, timeout=30)
 
         response.raise_for_status()
 
@@ -43,7 +47,7 @@ def download_pdf(result, folder = PAPERS_DIR):
         return None
 
 
-def extractor(query, max_results=5):
+def search_papers(query: str, max_results : int = 5) -> list[dict]:
 
     client = arxiv.Client(
     page_size=max_results,
@@ -61,15 +65,8 @@ def extractor(query, max_results=5):
                 sort_by=arxiv.SortCriterion.Relevance
             )
             for R in client.results(search):
-            
-                metadata = extract_metadata(R)
-
-                pdf_path = download_pdf(R)
-
-                metadata["pdf_path"] = pdf_path
-
-                papers.append(metadata)
-
+                papers.append(extract_metadata(R))
+                
             break # success, exit
         except arxiv.HTTPError as e:
             if e.status == 429:
