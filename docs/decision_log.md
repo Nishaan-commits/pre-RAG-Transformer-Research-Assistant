@@ -179,3 +179,74 @@ Existing frontend contracts were preserved:
 - `get_keywords()` still returns a keyword list structure,
 
 allowing the frontend to remain compatible while benefiting from the new architecture.
+
+## Decision #4: LangChain Integration Through Progressive Abstraction
+
+### Approach
+
+Initially, the entire retrieval and generation pipeline was implemented manually.
+
+This included:
+
+- chunk retrieval from the vector store,
+- prompt construction,
+- Groq API interaction,
+- response parsing,
+- answer generation.
+
+After understanding the complete pipeline, LangChain components were introduced incrementally rather than replacing the existing system.
+
+The integration occurred in stages:
+
+- ChatPromptTemplate for prompt management,
+- ChatGroq for model interaction,
+- PydanticOutputParser for structured outputs,
+- BaseRetriever wrapper around the existing FAISS vector store,
+- a full LCEL RAG chain combining retrieval and generation.
+
+The original manual pipeline was preserved alongside the LangChain implementation to allow direct comparison between approaches.
+
+### Why
+
+The goal was to learn LangChain as an orchestration framework without losing understanding of the underlying retrieval and generation mechanics.
+
+Implementing the system manually first made it easier to understand what LangChain abstractions were actually doing internally.
+
+By introducing components gradually, each abstraction could be evaluated independently rather than treating LangChain as a black box.
+
+### Tradeoffs
+
+#### Advantages
+
+- Better understanding of both manual and framework-based RAG systems.
+- Cleaner composition of retrieval and generation workflows.
+- Reduced boilerplate for prompt handling and model interaction.
+- Easier extensibility through reusable chain components.
+- Exposure to industry-standard GenAI tooling.
+
+#### Limitations
+
+- Additional dependency on a framework.
+- Increased abstraction can hide implementation details.
+- Debugging may require understanding both LangChain internals and custom code.
+- Some workflows become less explicit than manual implementations.
+
+### Current Improvements
+
+The integration introduced several capabilities:
+
+- ChatPromptTemplate-based prompt construction,
+- ChatGroq model integration,
+- structured output parsing with Pydantic,
+- VectorStoreRetriever adapter for the existing FAISS index,
+- full retrieval-augmented generation chains using LCEL.
+
+The application now supports multiple answering strategies:
+
+- Extractive QA,
+- Manual Generative QA,
+- LangChain LLM Generation,
+- LangChain RAG.
+
+This allows direct comparison between manual and framework-based approaches within the same application.
+

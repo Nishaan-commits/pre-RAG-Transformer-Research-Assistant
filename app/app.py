@@ -340,21 +340,30 @@ with st.sidebar:
         # st.radio returns the label string — we map it to the API param value.
         mode_label = st.radio(
             "Answer mode",
-            options=["🔍 Extractive", "🧠 Generative (RAG)"],
+            options=["🔍 Extractive", "🧠 Generative (manual)", "⛓ LangChain LLM", "🔗 LangChain RAG"],
             index=0,
             horizontal=True,
             help=(
-                "Extractive: finds an exact span from the paper (fast, precise).\n"
-                "Generative: synthesizes a full answer using Llama 3 via Groq (slower, richer)."
+                "Extractive: RoBERTa finds exact spans.\n"
+                "Generative (manual): hand-built prompt + Groq.\n"
+                "LangChain LLM: ChatGroq + ChatPromptTemplate, manual retrieval.\n"
+                "LangChain RAG: retrieval is inside the chain — full LC pipeline."
             )
         )
         # Map display label → API param value
-        mode = "generative" if "Generative" in mode_label else "extractive"
+        if "LangChain RAG" in mode_label:
+            mode = "rag_lc"
+        elif "LangChain LLM" in mode_label:
+            mode = "generative_lc"
+        elif "Generative" in mode_label:
+            mode = "generative"
+        else:
+            mode = "extractive"
 
         # ── Question input ────────────────────────────────────────────────────
         question = st.text_input(
             "Your question",
-            placeholder="e.g. What dataset was used?",
+            placeholder="e.g. Frame questions that i can ask from this paper?",
             label_visibility="collapsed",
         )
 

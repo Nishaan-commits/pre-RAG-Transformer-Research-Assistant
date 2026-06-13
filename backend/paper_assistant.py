@@ -7,6 +7,9 @@ from core.qa.QA_model import answer_question
 from core.generation.prompt_builder import build_prompt
 from core.generation.llm_client import generate_answer
 from core.generation.paper_analyzer import analyzer
+from core.langchain.lc_chain import lc_generate
+from core.langchain.lc_parser import lc_analyze
+from core.langchain.lc_rag_chain import build_rag_chain, lc_rag_answer
 from config import GROQ_MODEL
 
 def fetch_papers(query: str, max_results: int = 5) -> list[dict]:
@@ -93,6 +96,8 @@ class PaperSession:
         self.current_paper = None # To store system state
         self.store = None         # VectorStore lives here during a session
         self._analysis = None
+        self._lc_analysis = None
+        self._rag_chain = None
     
     # ── Stage 1: Select ───────────────────────────────────────────────────────
     def select_paper(self, paper: dict) -> dict:
@@ -100,6 +105,9 @@ class PaperSession:
         self.store = None
         self._summary = None
         self._keywords = None
+        self._analysis = None
+        self._lc_analysis = None
+        self._rag_chain = None
 
         return {
             "status" : "selected",
@@ -177,6 +185,19 @@ class PaperSession:
         """
         return self._get_analysis()
 
+    def get_lc_analysis(self) -> dict:
+        """
+        Langchain + Pydantic version of get_analysis()
+        """
+        if not self.current_paper or not self.current_paper.get("chunks"):
+            return {}
+        
+        if self._lc_analysis is None:
+            print("[Session] Running Langchain paper analysis (first request)...")
+            self._lc_analysis = lc_analyze(self.current_paper)
+        
+        return self._lc_analysis
+
     def get_summary(self) -> str:
         return self._get_analysis().get("summary", "No summary available.")
 
@@ -190,6 +211,15 @@ class PaperSession:
     def get_domain(self) -> str:
         return self._get_analysis().get("contribution", "")
     
+    def _get_rag_chain(self):
+        """
+        Builds the LangChain RAG chain once and caches it for the session.
+        """
+
+        if self._rag_chain is None:
+            self._rag_chain = build_rag_chain(self.store, top_k=5)
+        return self._rag_chain
+
 
 
     # ── Q&A ───────────────────────────────────────────────────────────────────    
@@ -202,7 +232,20 @@ class PaperSession:
 
         relevant_chunks = self.store.search(question, top_k=5)
 
-        if mode == "extractive":
+
+        if mode == "generative_lc":
+            answer_text = lc_generate(question, relevant_chunks)
+
+            answer = {
+                "answer":           answer_text,
+                "mode":             "generative_lc",
+                "model":            f"{GROQ_MODEL} (via langchain)",
+                "confidence_level": "N/A",
+                "chunks_used":      len(relevant_chunks),
+                "retrieved_chunks": relevant_chunks,
+            }
+
+        elif mode == "extractive":
             answer = answer_question(question, relevant_chunks)
 
             if answer is None:
@@ -213,6 +256,19 @@ class PaperSession:
 
             answer["mode"] = "extractive"
             answer["retrieved_chunks"] = relevant_chunks     # <- for source viewer
+        
+        elif mode == "rag_lc":
+            rag_chain = self._get_rag_chain()
+            answer_text = rag_chain.invoke(question)
+
+            answer = {
+                "answer"            : answer_text,
+                "mode"              : "rag_lc",
+                "model"             : f"{GROQ_MODEL} (LangChain RAG chain)",
+                "confidence_level"  : "N/A",
+                "retrieved_chunks"  : [],
+                "chunks_used"       : 5,
+            }
         
         else:
             prompt = build_prompt(question, relevant_chunks)
