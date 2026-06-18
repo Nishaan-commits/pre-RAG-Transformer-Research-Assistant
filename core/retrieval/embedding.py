@@ -1,45 +1,43 @@
+"""
+embedding.py — lazy-loaded version
+ 
+Why this change?
+    The old version loaded the model at import time:
+        embedding_model = load_embedding_model()
+    This ran the instant uvicorn imported api.py — before the server
+    could bind its port. On a memory-constrained host like Render's
+    free tier, that delay (or the memory spike during loading) caused
+    the port-scan timeout.
+ 
+    Now the model loads on the FIRST actual request, not at startup.
+    The server binds its port in milliseconds; the model loads lazily
+    the first time someone actually searches or asks a question.
+"""
+
+
 from sentence_transformers import SentenceTransformer
-import torch
-import torch.nn.functional as F
 from config import EMBED_MODEL_PATH, EMBED_MODEL_NAME
 import os
 
+_embedding_model = None
 
-def load_embedding_model():
+def get_embedding_model():
+    global _embedding_model
     if os.path.isdir(EMBED_MODEL_PATH):
-        embedding_model = SentenceTransformer(EMBED_MODEL_PATH)
+        print("[Embedding] Loading model from local cache...")
+        _embedding_model = SentenceTransformer(EMBED_MODEL_PATH)
     
     else:
         print("Downloading embedding model")
-        embedding_model = SentenceTransformer(EMBED_MODEL_NAME)
-        model.save(EMBED_MODEL_PATH)
+        _embedding_model = SentenceTransformer(EMBED_MODEL_NAME)
+        _embedding_model.save(EMBED_MODEL_PATH)
     
-    return embedding_model
-    
-embedding_model = load_embedding_model()
+    return _embedding_model
 
-# Mean Pooling Function
-  # Transformers output token embeddings, but we want sentence embedding.
-
-def mean_pooling(model_output, attention_mask):
-
-  token_embeddings = model_output.last_hidden_state
-
-  input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-
-  return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(
-      input_mask_expanded.sum(1),
-      min=1e-9
-  )
-
-# Embedding Function 
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-embedding_model.to(device)
 
 def create_embeddings(chunks):
-    embeddings = embedding_model.encode(
+    model = get_embedding_model()
+    embeddings = model.encode(
         chunks,
         batch_size=32,
         show_progress_bar=True,
