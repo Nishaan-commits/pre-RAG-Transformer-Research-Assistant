@@ -9,7 +9,6 @@ requests
 # NLP / Transformers
 transformers
 sentence-transformers
-torch
  
 # ML utils
 numpy
