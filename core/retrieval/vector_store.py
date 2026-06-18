@@ -8,7 +8,7 @@ import faiss
 import numpy as np 
 import pickle 
 import os
-from core.retrieval.embedding import embedding_model
+from core.retrieval.embedding import get_embedding_model
 
 class VectorStore:
     """
@@ -59,7 +59,7 @@ class VectorStore:
                 "Index is empty. Call build_index() before searching."
             )
         
-        query_vector = embedding_model.encode(
+        query_vector = get_embedding_model().encode(
             [query],
             normalize_embeddings=True,
             convert_to_tensor = False
