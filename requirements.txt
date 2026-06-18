@@ -10,7 +10,7 @@ requests
 transformers
 sentence-transformers
 keybert
-torch
+torch --index-url https://download.pytorch.org/whl/cpu
 
 # ML utils
 scikit-learn
@@ -19,3 +19,16 @@ numpy
 # Data processing
 PyMuPDF
 arxiv
+
+# Vector search          ← Step 2: FAISS retrieval
+faiss-cpu
+
+# LLM / API             ← Step 3: Groq generation + .env loading
+groq
+python-dotenv
+
+# LangChain             ← Step 6: LangChain integration
+langchain
+langchain-core
+langchain-groq
+pydantic
