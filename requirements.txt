@@ -1,33 +1,31 @@
 # Backend
 fastapi
 uvicorn
-
+ 
 # Frontend
 streamlit
 requests
-
+ 
 # NLP / Transformers
 transformers
 sentence-transformers
-keybert
-torch --index-url https://download.pytorch.org/whl/cpu
-
+torch
+ 
 # ML utils
-scikit-learn
 numpy
-
+ 
 # Data processing
 PyMuPDF
 arxiv
-
-# Vector search          ← Step 2: FAISS retrieval
+ 
+# Vector search
 faiss-cpu
-
-# LLM / API             ← Step 3: Groq generation + .env loading
+ 
+# LLM / API
 groq
 python-dotenv
-
-# LangChain             ← Step 6: LangChain integration
+ 
+# LangChain
 langchain
 langchain-core
 langchain-groq

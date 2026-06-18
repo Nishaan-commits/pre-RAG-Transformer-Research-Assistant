@@ -1,12 +1,35 @@
+"""
+api.py — DEMO BRANCH
+ 
+Endpoints kept:
+  POST /search          metadata only, fast
+  POST /select          pick a paper
+  POST /process/text    download + preprocess
+  POST /process/index   chunk + embed + FAISS
+  POST /ask             mode=generative or mode=rag_lc
+  GET  /metadata        paper info
+  GET  /status          is the paper ready?
+ 
+Removed:
+  /analysis, /summary, /keywords, /contribution, /domain, /ask/lc
+"""
+
 
 import arxiv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from backend.paper_assistant import PaperSession, fetch_papers, list_papers, select_paper
 
-app = FastAPI()
+app = FastAPI(title="Research Paper Assistant - Demo")
+# Allow Streamlit (different port/domain) to call the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 session = PaperSession()
-
-
 papers_cache = []
 
 @app.post("/search")
@@ -64,38 +87,6 @@ def process_index():
 def ask_question(question:str, mode : str = "generative"):
     
     return session.ask(question, mode)
-
-
-@app.get("/analysis")
-def get_analysis():
-    """
-    Returns full structured analysis in one request.
-    """
-    analysis = session.get_analysis()
-    if not analysis:
-        raise HTTPException(status_code=400, detaik="Paper not ready for analysis.")
-    return analysis
-
-@app.get("/summary")
-def get_summary():
-    return {
-        "summary" : session.get_summary()
-    }
-
-
-@app.get("/keywords")
-def get_keywords():
-    return {
-        "keywords" : session.get_keywords()
-    }
-
-@app.get("/contribution")
-def get_contribution():
-    return {"contribution": session.get_contribution()}
-
-@app.get("/domain")
-def get_domain():
-    return {"domain": session.get_domain()}
 
 @app.get("/metadata")
 def get_metadata():
