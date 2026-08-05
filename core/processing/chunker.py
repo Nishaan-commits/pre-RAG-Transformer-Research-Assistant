@@ -28,7 +28,13 @@ def load_tokenizer():
 
     return tokenizer
     
-tokenizer = load_tokenizer()
+_tokenizer = None
+
+def get_tokenizer():
+    global _tokenizer
+    if _tokenizer is None:
+        _tokenizer = load_tokenizer()
+    return _tokenizer
 
 def clean_chunk(text):
 
@@ -50,8 +56,10 @@ def clean_chunk(text):
 
 
 
-def create_chunks(text, tokenizer=tokenizer):
-
+def create_chunks(text, tokenizer=None):
+    if tokenizer is None:
+        tokenizer = get_tokenizer()
+        
     text = " ".join(text)
 
     encodings = tokenizer(

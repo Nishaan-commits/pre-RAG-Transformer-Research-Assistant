@@ -8,7 +8,6 @@ requests
  
 # NLP / Transformers
 transformers
-sentence-transformers
  
 # ML utils
 numpy

@@ -2,13 +2,15 @@
 
 Responsibility: Store embeddings in a FAISS index and retrieve the most relevant chunks for a given query.
 
+Updated for HF API embeddings
 """
 
 import faiss 
 import numpy as np 
 import pickle 
 import os
-from core.retrieval.embedding import get_embedding_model
+from core.retrieval.embedding import get_query_embedding
+
 
 class VectorStore:
     """
@@ -59,11 +61,7 @@ class VectorStore:
                 "Index is empty. Call build_index() before searching."
             )
         
-        query_vector = get_embedding_model().encode(
-            [query],
-            normalize_embeddings=True,
-            convert_to_tensor = False
-        ).astype("float32")
+        query_vector = get_query_embedding(query).reshape(1,-1).astype("float32")
 
         # FAISS search
         distances, indices = self.index.search(query_vector, top_k)

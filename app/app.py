@@ -279,7 +279,7 @@ if "papers" in st.session_state and st.session_state["papers"]:
                 st.write("📥 Downloading PDF and extracting text...")
                 r_text = requests.post(f"{API_URL}/process/text")
                 if r_text.status_code != 200:
-                    status.update(label = "❌ Text extraction failed", status="error")
+                    status.update(label = "❌ Text extraction failed", state="error")
                     st.error(r_text.json().get("detail", "Unknown error"))
                     st.stop()
 
@@ -287,7 +287,11 @@ if "papers" in st.session_state and st.session_state["papers"]:
                 r_index = requests.post(f"{API_URL}/process/index")
                 if r_index.status_code != 200:  
                     status.update(label = "❌ Indexing failed", state="error")
-                    st.error(r_index.json().get("detail", "Unknown error"))
+
+                    st.write("Status:", r_index.status_code)
+                    st.write("Content-Type:", r_index.headers.get("Content-Type"))
+                    st.code(r_index.text)
+
                     st.stop()
                 
                 chunk_count = r_index.json().get("chunks", "?")
