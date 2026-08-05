@@ -29,6 +29,9 @@ load_dotenv()
 # Config 
 
 HF_TOKEN = os.getenv("HF_TOKEN")
+print("HF_TOKEN exists:", HF_TOKEN is not None)
+print("HF_TOKEN length:", len(HF_TOKEN) if HF_TOKEN else 0)
+print("HF_TOKEN prefix:", HF_TOKEN[:5] if HF_TOKEN else None)
 MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 API_URL = (
     f"https://router.huggingface.co/"
