@@ -56,7 +56,7 @@ def _embed_batch(texts: list[str], retries: int = 5) -> np.ndarray:
 
     for attempt in range(retries):
         print("Authorization header:",
-              headers["Authorization"][:15] + "...")
+              HEADERS["Authorization"][:15] + "...")
         response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=60)
 
         if response.status_code == 200:
