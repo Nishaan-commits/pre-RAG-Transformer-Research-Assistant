@@ -28,10 +28,14 @@ load_dotenv()
 
 # Config 
 
+
 HF_TOKEN = os.getenv("HF_TOKEN")
-print("HF_TOKEN exists:", HF_TOKEN is not None)
-print("HF_TOKEN length:", len(HF_TOKEN) if HF_TOKEN else 0)
-print("HF_TOKEN prefix:", HF_TOKEN[:5] if HF_TOKEN else None)
+assert HF_TOKEN is not None, "HF_TOKEN is None"
+
+print("repr:", repr(HF_TOKEN))
+print("length:", len(HF_TOKEN))
+print("startswith hf_:", HF_TOKEN.startswith("hf_"))
+
 MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 API_URL = (
     f"https://router.huggingface.co/"
@@ -51,6 +55,8 @@ def _embed_batch(texts: list[str], retries: int = 5) -> np.ndarray:
     payload = {"inputs": texts, "options": {"wait_for_model": True}}
 
     for attempt in range(retries):
+        print("Authorization header:",
+              headers["Authorization"][:15] + "...")
         response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=60)
 
         if response.status_code == 200:
@@ -75,7 +81,11 @@ def _embed_batch(texts: list[str], retries: int = 5) -> np.ndarray:
         else:
           # Unexpected error - raise immediately, don't retry
           raise RuntimeError(
-            f"HF Inference API error {response.status_code}: {response.text}"
+              f"""
+          Status: {response.status_code}
+          Headers: {dict(response.headers)}
+          Body: {response.text}
+          """
           )
     
     raise RuntimeError(
